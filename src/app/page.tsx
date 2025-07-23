@@ -1,15 +1,46 @@
-"use client"
+"use client";
 
+import {
+  FaBackward,
+  FaForward,
+  FaPause,
+  FaPlay,
+  FaVolumeMute,
+  FaVolumeUp,
+  FaExpand,
+} from "react-icons/fa";
 import { useEffect, useRef, useState } from "react";
-import { FaBackward, FaForward, FaPause, FaPlay, FaVolumeMute, FaVolumeUp } from "react-icons/fa";
+
+const videoList = [
+  {
+    src: "/assets/video01.mp4",
+    title: "Como beber um copo de água",
+    description: "Tutorial de como beber água.",
+  },
+  {
+    src: "/assets/video02.mp4",
+    title: "Como abrir uma porta",
+    description: "Tutorial de como abrir uma porta.",
+  },
+  {
+    src: "/assets/video03.mp4",
+    title: "Como assobiar",
+    description: "Tutorial de como assobiar.",
+  },
+];
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [volume, setVolume] = useState(1); // volume varia de 0 a 1
+  const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(videoList[0]);
+  const [showVolume, setShowVolume] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const togglePlayPause = () => {
     const video = videoRef.current;
@@ -45,79 +76,162 @@ export default function Home() {
     const video = videoRef.current;
     if (!video) return;
 
-    video.muted = !muted;
-    setMuted(!muted);
+    const newMuted = !muted;
+    video.muted = newMuted;
+    setMuted(newMuted);
+  };
+
+  const toggleFullscreen = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!document.fullscreenElement) {
+      video.parentElement?.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
   };
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const updateTime = () => {
-      setCurrentTime(video.currentTime);
+    const updateTime = () => setCurrentTime(video.currentTime);
+    video.addEventListener("timeupdate", updateTime);
+
+    return () => video.removeEventListener("timeupdate", updateTime);
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.load();
+    video.play();
+    setPlaying(true);
+  }, [selectedVideo]);
+
+  useEffect(() => {
+    const handleMouseMove = () => {
+      setControlsVisible(true);
+      clearTimeout((window as any).controlsTimeout);
+      (window as any).controlsTimeout = setTimeout(() => {
+        setControlsVisible(false);
+      }, 3000);
     };
 
-    video.addEventListener("timeupdate", updateTime);
+    const videoWrapper = videoRef.current?.parentElement;
+    if (videoWrapper) {
+      videoWrapper.addEventListener("mousemove", handleMouseMove);
+    }
+
     return () => {
-      video.removeEventListener("timeupdate", updateTime);
+      if (videoWrapper) {
+        videoWrapper.removeEventListener("mousemove", handleMouseMove);
+      }
     };
   }, []);
 
   return (
-    <div className="w-[100vw] h-[100vh] bg-[#222222] flex justify-center items-center">
-      <div className="w-[20vw] h-[75vh] bg-[#888888] p-4 rounded-lg shadow-lg flex flex-col items-center">
-        <video
-          ref={videoRef}
-          className="w-[100%] mb-4"
-          src="./assets/video01.mp4"
-        />
+    <main className="flex items-center justify-center min-h-screen bg-[#111] text-white">
+      <div className="flex flex-col lg:flex-row w-full h-screen">
+        {/* Lista lateral */}
+        <aside className="w-full lg:w-[20vw] bg-[#1e1e2e] p-4 overflow-y-auto">
+          <h2 className="text-lg font-bold mb-4">Lista de Vídeos</h2>
+          {videoList.map((video, index) => (
+            <button
+              key={index}
+              onClick={() => setSelectedVideo(video)}
+              className={`block w-full text-left p-2 mb-2 rounded ${
+                selectedVideo.src === video.src
+                  ? "bg-blue-600"
+                  : "bg-gray-700 hover:bg-gray-600"
+              }`}
+            >
+              <p className="font-semibold">{video.title}</p>
+              <p className="text-sm text-gray-300">{video.description}</p>
+            </button>
+          ))}
+        </aside>
 
-        {/* Play/Pause */}
-        <div className="flex gap-4 mb-4">
-          <button onClick={togglePlayPause}>
-            {playing ? <FaPause size={20} /> : <FaPlay size={20} />}
-          </button>
+        {/* Player principal */}
+        <div className="flex-1 flex items-center justify-center bg-[#111] relative">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <video
+              ref={videoRef}
+              className="w-full h-full object-contain bg-black"
+              src={selectedVideo.src}
+              controls={false}
+            />
 
-          {/* -10s / +10s */}
-          <button onClick={() => changeTime(currentTime - 10)}>
-            <FaBackward size={20} />
-          </button>
-          <button onClick={() => changeTime(currentTime + 10)}>
-            <FaForward size={20} />
-          </button>
-        </div>
+            {/* Controles */}
+            {controlsVisible && (
+              <div
+                ref={controlsRef}
+                className="absolute bottom-0 w-full px-6 pb-4 pt-2 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col items-center gap-2"
+              >
+                {/* Barra de tempo */}
+                <input
+                  type="range"
+                  min={0}
+                  max={videoRef.current?.duration ?? 0}
+                  step={0.01}
+                  value={currentTime}
+                  onChange={(e) => changeTime(Number(e.target.value))}
+                  className="w-full mb-2"
+                />
 
-        {/* Barra de tempo */}
-        <input
-          className="w-full mb-4"
-          type="range"
-          min={0}
-          max={videoRef.current?.duration ?? 0}
-          step={0.01}
-          value={currentTime}
-          onChange={e => changeTime(Number(e.target.value))}
-        />
+                {/* Linha de controles */}
+                <div className="w-full flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <button onClick={() => changeTime(currentTime - 10)}>
+                      <FaBackward size={24} />
+                    </button>
+                    <button onClick={togglePlayPause}>
+                      {playing ? <FaPause size={24} /> : <FaPlay size={24} />}
+                    </button>
+                    <button onClick={() => changeTime(currentTime + 10)}>
+                      <FaForward size={24} />
+                    </button>
+                  </div>
 
-        {/* Volume + Mute */}
-        <div className="w-full flex items-center gap-2">
-          <button onClick={toggleMute}>
-            {muted || volume === 0 ? (
-              <FaVolumeMute size={18} />
-            ) : (
-              <FaVolumeUp size={18} />
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="relative flex items-center"
+                      onMouseEnter={() => setShowVolume(true)}
+                      onMouseLeave={() => setShowVolume(false)}
+                    >
+                      <button onClick={toggleMute}>
+                        {muted || volume === 0 ? (
+                          <FaVolumeMute size={24} />
+                        ) : (
+                          <FaVolumeUp size={24} />
+                        )}
+                      </button>
+                      {showVolume && (
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={muted ? 0 : volume}
+                          onChange={(e) => changeVolume(Number(e.target.value))}
+                          className="w-24 ml-2"
+                        />
+                      )}
+                    </div>
+                    <button onClick={toggleFullscreen}>
+                      <FaExpand size={24} />
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={muted ? 0 : volume}
-            onChange={(e) => changeVolume(Number(e.target.value))}
-            className="w-full"
-          />
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
