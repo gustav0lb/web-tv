@@ -94,15 +94,36 @@ export default function Home() {
     }
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+      .toString()
+      .padStart(2, "0");
+    const secs = Math.floor(seconds % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${mins}:${secs}`;
+  };
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const updateTime = () => setCurrentTime(video.currentTime);
-    video.addEventListener("timeupdate", updateTime);
 
-    return () => video.removeEventListener("timeupdate", updateTime);
-  }, []);
+    const handleEnded = () => {
+      const currentIndex = videoList.findIndex(v => v.src === selectedVideo.src);
+      const nextIndex = (currentIndex + 1) % videoList.length;
+      setSelectedVideo(videoList[nextIndex]);
+    };
+
+    video.addEventListener("timeupdate", updateTime);
+    video.addEventListener("ended", handleEnded);
+
+    return () => {
+      video.removeEventListener("timeupdate", updateTime);
+      video.removeEventListener("ended", handleEnded);
+    };
+  }, [selectedVideo]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -180,11 +201,17 @@ export default function Home() {
                   step={0.01}
                   value={currentTime}
                   onChange={(e) => changeTime(Number(e.target.value))}
-                  className="w-full mb-2"
+                  className="w-full mb-1"
                 />
 
+                {/* Tempo atual e duração */}
+                <div className="w-full flex justify-between text-sm text-gray-300 px-1">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(videoRef.current?.duration || 0)}</span>
+                </div>
+
                 {/* Linha de controles */}
-                <div className="w-full flex items-center justify-between">
+                <div className="w-full flex items-center justify-between mt-1">
                   <div className="flex items-center gap-4">
                     <button onClick={() => changeTime(currentTime - 10)}>
                       <FaBackward size={24} />
